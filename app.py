@@ -20,8 +20,14 @@ try:
     from pydub import AudioSegment
     from pydub.effects import normalize
     PYDUB_AVAILABLE = True
-except ImportError:
+    print("pydub imported successfully")
+except ImportError as e:
     PYDUB_AVAILABLE = False
+    print(f"Warning: pydub import failed: {e}")
+except Exception as e:
+    # pydub might fail if ffmpeg is not available
+    PYDUB_AVAILABLE = False
+    print(f"Warning: pydub initialization failed: {e}")
 
 # TTS - try multiple options
 TTS_ENGINE = None
@@ -246,7 +252,13 @@ def load_and_prepare_audio(file_path: Path, target_sample_rate: int = 44100):
     if not PYDUB_AVAILABLE:
         raise RuntimeError("pydub not available")
     
-    audio = AudioSegment.from_file(str(file_path))
+    try:
+        audio = AudioSegment.from_file(str(file_path))
+    except Exception as e:
+        error_msg = str(e).lower()
+        if 'ffmpeg' in error_msg or 'ffprobe' in error_msg or 'not found' in error_msg:
+            raise RuntimeError(f"ffmpeg is required but not found. Please install ffmpeg. Error: {e}")
+        raise RuntimeError(f"Failed to load audio file: {e}")
     
     if audio.frame_rate != target_sample_rate:
         audio = audio.set_frame_rate(target_sample_rate)
@@ -430,7 +442,9 @@ def generate():
         
         # Validate
         if not PYDUB_AVAILABLE:
-            return jsonify({'error': 'pydub is not available. Please install it.'}), 400
+            return jsonify({
+                'error': 'pydub is not available. Please install it. If pydub is installed, ffmpeg may be missing - check build logs.'
+            }), 400
         
         if semitone_min >= semitone_max:
             return jsonify({'error': 'Semitone min must be less than max'}), 400
@@ -448,18 +462,26 @@ def generate():
             return jsonify({'error': 'No audio files found in dataset'}), 400
         
         # Generate exercise
-        exercise_audio, answer_data, script_texts = generate_exercise_audio(
-            root_note=root_note,
-            semitone_range=(semitone_min, semitone_max),
-            num_rounds=num_rounds,
-            num_repetitions=num_repetitions,
-            note_to_files_map=note_to_files_map,
-            note_gap_ms=note_gap_ms,
-            between_repetitions_wait_s=between_repetitions_wait_s,
-            between_rounds_wait_s=between_rounds_wait_s,
-            sample_rate=sample_rate,
-            random_seed=random_seed
-        )
+        try:
+            exercise_audio, answer_data, script_texts = generate_exercise_audio(
+                root_note=root_note,
+                semitone_range=(semitone_min, semitone_max),
+                num_rounds=num_rounds,
+                num_repetitions=num_repetitions,
+                note_to_files_map=note_to_files_map,
+                note_gap_ms=note_gap_ms,
+                between_repetitions_wait_s=between_repetitions_wait_s,
+                between_rounds_wait_s=between_rounds_wait_s,
+                sample_rate=sample_rate,
+                random_seed=random_seed
+            )
+        except RuntimeError as e:
+            error_msg = str(e).lower()
+            if 'ffmpeg' in error_msg or 'not found' in error_msg:
+                return jsonify({
+                    'error': f'ffmpeg is required but not found. Please ensure ffmpeg is installed in the build. Error: {e}'
+                }), 500
+            raise
         
         # Create unique output directory for this generation
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
