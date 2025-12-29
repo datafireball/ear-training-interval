@@ -161,7 +161,7 @@ def select_best_file(file_list: List[Path]) -> Path:
     return sorted(file_list, key=lambda p: (len(p.name), p.name))[0]
 
 
-def generate_tts_audio(text: str, output_path: Optional[Path] = None) -> Optional[AudioSegment]:
+def generate_tts_audio(text: str, output_path: Optional[Path] = None):
     """Generate TTS audio from text."""
     if not PYDUB_AVAILABLE:
         return None
@@ -241,7 +241,7 @@ def generate_tts_audio(text: str, output_path: Optional[Path] = None) -> Optiona
         return None
 
 
-def load_and_prepare_audio(file_path: Path, target_sample_rate: int = 44100) -> AudioSegment:
+def load_and_prepare_audio(file_path: Path, target_sample_rate: int = 44100):
     """Load audio file and prepare it."""
     if not PYDUB_AVAILABLE:
         raise RuntimeError("pydub not available")
@@ -266,7 +266,7 @@ def create_note_pair_audio(
     second_file: Path,
     gap_ms: int = 150,
     target_sample_rate: int = 44100
-) -> AudioSegment:
+):
     """Create audio for a note pair: root + gap + second note."""
     root_audio = load_and_prepare_audio(root_file, target_sample_rate)
     second_audio = load_and_prepare_audio(second_file, target_sample_rate)
@@ -291,7 +291,7 @@ def generate_exercise_audio(
     between_rounds_wait_s: float = 1.0,
     sample_rate: int = 44100,
     random_seed: Optional[int] = None
-) -> Tuple[AudioSegment, List[Dict], List[str]]:
+):
     """Generate the complete exercise audio."""
     if not PYDUB_AVAILABLE:
         raise RuntimeError("pydub not available")
