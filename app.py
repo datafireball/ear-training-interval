@@ -16,26 +16,23 @@ from flask import Flask, render_template, request, jsonify, send_file, flash, re
 from werkzeug.utils import secure_filename
 
 # Audio processing
-# Try to import pyaudioop first (optional dependency for pydub)
+# Use pydub-ng for Python 3.13 compatibility (handles audioop removal)
 try:
-    import pyaudioop
-except ImportError:
-    # pyaudioop is optional - pydub can work without it
-    # In Python 3.13+, pyaudioop was removed from stdlib
-    # We'll install pyaudioop-lts via requirements.txt
-    pass
-
-try:
-    from pydub import AudioSegment
-    from pydub.effects import normalize
+    # Try pydub-ng first (Python 3.13 compatible)
+    try:
+        from pydub_ng import AudioSegment
+        from pydub_ng.effects import normalize
+        print("Using pydub-ng (Python 3.13 compatible)")
+    except ImportError:
+        # Fallback to regular pydub if pydub-ng not available
+        from pydub import AudioSegment
+        from pydub.effects import normalize
+        print("Using pydub (fallback)")
     PYDUB_AVAILABLE = True
-    print("pydub imported successfully")
+    print("Audio processing library imported successfully")
 except ImportError as e:
     PYDUB_AVAILABLE = False
     print(f"Warning: pydub import failed: {e}")
-    # If it's a pyaudioop error, suggest installing pyaudioop-lts
-    if 'pyaudioop' in str(e).lower():
-        print("Note: pyaudioop is missing. Install pyaudioop-lts: pip install pyaudioop-lts")
 except Exception as e:
     # pydub might fail if ffmpeg is not available
     PYDUB_AVAILABLE = False
