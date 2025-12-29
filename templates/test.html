@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Take Ear Training Test</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        .test-container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .test-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        
+        .audio-player-container {
+            background: #f8f9fa;
+            padding: 30px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        
+        audio {
+            width: 100%;
+            max-width: 600px;
+            margin: 20px 0;
+        }
+        
+        .answers-section {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+        }
+        
+        .answer-item {
+            margin-bottom: 25px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .answer-item h3 {
+            margin-bottom: 15px;
+            color: #667eea;
+        }
+        
+        .answer-inputs {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 10px;
+        }
+        
+        .answer-input-group {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .answer-input-group label {
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #555;
+        }
+        
+        .answer-input-group input {
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 1em;
+        }
+        
+        .answer-input-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .test-actions {
+            text-align: center;
+            margin-top: 30px;
+        }
+        
+        .results-section {
+            display: none;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            margin-top: 30px;
+        }
+        
+        .results-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .score-display {
+            font-size: 3em;
+            font-weight: bold;
+            color: #28a745;
+            margin: 20px 0;
+        }
+        
+        .result-item {
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 6px;
+            border-left: 4px solid #ccc;
+        }
+        
+        .result-item.correct {
+            background: #d4edda;
+            border-left-color: #28a745;
+        }
+        
+        .result-item.incorrect {
+            background: #f8d7da;
+            border-left-color: #dc3545;
+        }
+        
+        .result-details {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 10px;
+            margin-top: 10px;
+            font-size: 0.9em;
+        }
+        
+        .result-label {
+            font-weight: 600;
+            color: #666;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 30px;
+            background: #e0e0e0;
+            border-radius: 15px;
+            overflow: hidden;
+            margin: 20px 0;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #28a745, #20c997);
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <div class="test-header">
+            <h1>🎵 Ear Training Test</h1>
+            <p>Listen to the audio and identify the semitone intervals</p>
+        </div>
+
+        <div class="audio-player-container">
+            <h2>Exercise Audio</h2>
+            <audio id="audioPlayer" controls>
+                <source src="/download/{{ audio_file }}" type="audio/{{ audio_format }}">
+                Your browser does not support the audio element.
+            </audio>
+            <p style="margin-top: 10px; color: #666;">
+                <strong>Root Note:</strong> {{ test_data.root_note }} | 
+                <strong>Rounds:</strong> {{ test_data.num_rounds }}
+            </p>
+        </div>
+
+        <div class="answers-section">
+            <h2>Your Answers</h2>
+            <form id="testForm">
+                {% for answer in test_data.answers %}
+                <div class="answer-item">
+                    <h3>Round {{ answer.round }}</h3>
+                    <p style="color: #666; margin-bottom: 10px;">
+                        What is the semitone offset or note name of the second note?
+                    </p>
+                    <div class="answer-inputs">
+                        <div class="answer-input-group">
+                            <label for="offset_{{ answer.round }}">Semitone Offset</label>
+                            <input type="number" 
+                                   id="offset_{{ answer.round }}" 
+                                   name="offset_{{ answer.round }}"
+                                   placeholder="e.g., -5, 7, 12"
+                                   min="-24" max="24">
+                        </div>
+                        <div class="answer-input-group">
+                            <label for="note_{{ answer.round }}">Note Name (Optional)</label>
+                            <input type="text" 
+                                   id="note_{{ answer.round }}" 
+                                   name="note_{{ answer.round }}"
+                                   placeholder="e.g., G4, A#3">
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+                
+                <div class="test-actions">
+                    <button type="submit" class="btn btn-primary" id="submitBtn">
+                        Submit Answers
+                    </button>
+                    <button type="button" class="btn" style="background: #6c757d; margin-left: 10px;" onclick="window.location.href='/'">
+                        Back to Generator
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div class="results-section" id="resultsSection">
+            <div class="results-header">
+                <h2>Test Results</h2>
+                <div class="score-display" id="scoreDisplay"></div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+            </div>
+            
+            <div id="resultsList"></div>
+            
+            <div style="text-align: center; margin-top: 30px;">
+                <button class="btn btn-primary" onclick="window.location.href='/'">
+                    Generate New Test
+                </button>
+                <button class="btn" style="background: #6c757d; margin-left: 10px;" onclick="location.reload()">
+                    Retake This Test
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const testId = '{{ test_id }}';
+        const numRounds = {{ test_data.num_rounds }};
+        
+        document.getElementById('testForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const submitBtn = document.getElementById('submitBtn');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Submitting...';
+            
+            // Collect answers
+            const answers = [];
+            for (let i = 1; i <= numRounds; i++) {
+                const offsetInput = document.getElementById(`offset_${i}`);
+                const noteInput = document.getElementById(`note_${i}`);
+                
+                const offset = offsetInput.value ? parseInt(offsetInput.value) : null;
+                const note = noteInput.value || null;
+                
+                answers.push({
+                    offset: offset,
+                    note: note
+                });
+            }
+            
+            try {
+                const response = await fetch(`/api/test/${testId}/submit`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ answers: answers })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayResults(data);
+                } else {
+                    alert('Error submitting test: ' + (data.error || 'Unknown error'));
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Submit Answers';
+                }
+            } catch (error) {
+                alert('Network error: ' + error.message);
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Submit Answers';
+            }
+        });
+        
+        function displayResults(data) {
+            const resultsSection = document.getElementById('resultsSection');
+            const scoreDisplay = document.getElementById('scoreDisplay');
+            const progressFill = document.getElementById('progressFill');
+            const resultsList = document.getElementById('resultsList');
+            
+            // Show results section
+            resultsSection.style.display = 'block';
+            resultsSection.scrollIntoView({ behavior: 'smooth' });
+            
+            // Display score
+            const percentage = data.score.percentage;
+            scoreDisplay.textContent = `${data.score.correct}/${data.score.total} (${percentage}%)`;
+            scoreDisplay.style.color = percentage >= 70 ? '#28a745' : percentage >= 50 ? '#ffc107' : '#dc3545';
+            
+            // Update progress bar
+            progressFill.style.width = `${percentage}%`;
+            progressFill.textContent = `${percentage}%`;
+            
+            // Display individual results
+            resultsList.innerHTML = '';
+            data.results.forEach(result => {
+                const resultDiv = document.createElement('div');
+                resultDiv.className = `result-item ${result.is_correct ? 'correct' : 'incorrect'}`;
+                
+                const statusIcon = result.is_correct ? '✓' : '✗';
+                const statusText = result.is_correct ? 'Correct' : 'Incorrect';
+                
+                let userAnswerText = 'Not answered';
+                if (result.user_answer.offset !== null && result.user_answer.offset !== undefined) {
+                    userAnswerText = `${result.user_answer.offset} semitones`;
+                } else if (result.user_answer.note) {
+                    userAnswerText = result.user_answer.note;
+                }
+                
+                resultDiv.innerHTML = `
+                    <div style="font-weight: bold; font-size: 1.1em; margin-bottom: 10px;">
+                        Round ${result.round}: ${statusIcon} ${statusText}
+                    </div>
+                    <div class="result-details">
+                        <div>
+                            <span class="result-label">Your Answer:</span><br>
+                            ${userAnswerText}
+                        </div>
+                        <div>
+                            <span class="result-label">Correct Answer:</span><br>
+                            ${result.correct_answer.offset} semitones<br>
+                            <small>(${result.correct_answer.note})</small>
+                        </div>
+                        <div>
+                            <span class="result-label">Difference:</span><br>
+                            ${result.user_answer.offset !== null && result.user_answer.offset !== undefined 
+                                ? Math.abs(result.user_answer.offset - result.correct_answer.offset) + ' semitones'
+                                : 'N/A'}
+                        </div>
+                    </div>
+                `;
+                
+                resultsList.appendChild(resultDiv);
+            });
+            
+            // Hide form
+            document.getElementById('testForm').style.display = 'none';
+        }
+    </script>
+</body>
+</html>
+

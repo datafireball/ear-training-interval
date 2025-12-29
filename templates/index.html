@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ear Training Exercise Generator</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎵 Ear Training Exercise Generator</h1>
+            <p class="subtitle">Generate custom ear training exercises from guitar note samples</p>
+        </header>
+
+        <div class="status-bar" id="statusBar">
+            <div class="status-item">
+                <span class="status-label">Audio Processing:</span>
+                <span class="status-value {% if pydub_available %}status-ok{% else %}status-error{% endif %}">
+                    {% if pydub_available %}✓ Available{% else %}✗ Not Available{% endif %}
+                </span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">TTS Engine:</span>
+                <span class="status-value {% if tts_engine %}status-ok{% else %}status-warning{% endif %}">
+                    {% if tts_engine %}{{ tts_engine }}{% else %}Not Available{% endif %}
+                </span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Notes Found:</span>
+                <span class="status-value" id="notesCount">Loading...</span>
+            </div>
+        </div>
+
+        <main>
+            <form id="exerciseForm" class="exercise-form">
+                <div class="form-section">
+                    <h2>Exercise Parameters</h2>
+                    
+                    <div class="form-group">
+                        <label for="root_note">Root Note</label>
+                        <input type="text" id="root_note" name="root_note" value="C4" 
+                               placeholder="e.g., C4, A#4, Bb3" required>
+                        <small>Starting note for the exercise</small>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="semitone_min">Semitone Range (Min)</label>
+                            <input type="number" id="semitone_min" name="semitone_min" value="-12" 
+                                   min="-24" max="24" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="semitone_max">Semitone Range (Max)</label>
+                            <input type="number" id="semitone_max" name="semitone_max" value="12" 
+                                   min="-24" max="24" required>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="num_rounds">Number of Rounds</label>
+                            <input type="number" id="num_rounds" name="num_rounds" value="10" 
+                                   min="1" max="100" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="num_repetitions">Repetitions per Round</label>
+                            <input type="number" id="num_repetitions" name="num_repetitions" value="3" 
+                                   min="1" max="10" required>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <h2>Audio Settings</h2>
+                    
+                    <div class="form-group">
+                        <label for="sample_rate">Sample Rate (Hz)</label>
+                        <select id="sample_rate" name="sample_rate">
+                            <option value="44100" selected>44100 (CD Quality)</option>
+                            <option value="48000">48000 (Professional)</option>
+                            <option value="22050">22050 (Lower Quality)</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="note_gap_ms">Note Gap (ms)</label>
+                        <input type="number" id="note_gap_ms" name="note_gap_ms" value="150" 
+                               min="0" max="1000" step="10">
+                        <small>Silence between first and second note in a pair</small>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="between_repetitions_wait_s">Between Repetitions Wait (s)</label>
+                            <input type="number" id="between_repetitions_wait_s" name="between_repetitions_wait_s" 
+                                   value="2.0" min="0" max="10" step="0.1">
+                        </div>
+                        <div class="form-group">
+                            <label for="between_rounds_wait_s">Between Rounds Wait (s)</label>
+                            <input type="number" id="between_rounds_wait_s" name="between_rounds_wait_s" 
+                                   value="1.0" min="0" max="10" step="0.1">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <h2>Advanced Settings</h2>
+                    
+                    <div class="form-group">
+                        <label for="random_seed">Random Seed (Optional)</label>
+                        <input type="number" id="random_seed" name="random_seed" 
+                               placeholder="Leave empty for random">
+                        <small>Set a seed for reproducible exercises</small>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" id="generateBtn" class="btn btn-primary">
+                        <span class="btn-text">Generate Exercise</span>
+                        <span class="btn-spinner" style="display: none;">⏳ Generating...</span>
+                    </button>
+                </div>
+            </form>
+
+            <div id="results" class="results" style="display: none;">
+                <h2>Generation Complete!</h2>
+                <div class="result-info" id="resultInfo"></div>
+                <div class="download-links" id="downloadLinks"></div>
+            </div>
+
+            <div id="error" class="error-message" style="display: none;"></div>
+        </main>
+
+        <footer>
+            <p>Ear Training Exercise Generator - Built with Flask</p>
+        </footer>
+    </div>
+
+    <script>
+        // Load status on page load
+        fetch('/api/status')
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('notesCount').textContent = data.notes_found || 0;
+            })
+            .catch(err => console.error('Error loading status:', err));
+
+        // Form submission
+        document.getElementById('exerciseForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const generateBtn = document.getElementById('generateBtn');
+            const btnText = generateBtn.querySelector('.btn-text');
+            const btnSpinner = generateBtn.querySelector('.btn-spinner');
+            const resultsDiv = document.getElementById('results');
+            const errorDiv = document.getElementById('error');
+            
+            // Show loading state
+            generateBtn.disabled = true;
+            btnText.style.display = 'none';
+            btnSpinner.style.display = 'inline';
+            resultsDiv.style.display = 'none';
+            errorDiv.style.display = 'none';
+            
+            // Collect form data
+            const formData = {
+                root_note: document.getElementById('root_note').value,
+                semitone_min: document.getElementById('semitone_min').value,
+                semitone_max: document.getElementById('semitone_max').value,
+                num_rounds: document.getElementById('num_rounds').value,
+                num_repetitions: document.getElementById('num_repetitions').value,
+                sample_rate: document.getElementById('sample_rate').value,
+                note_gap_ms: document.getElementById('note_gap_ms').value,
+                between_repetitions_wait_s: document.getElementById('between_repetitions_wait_s').value,
+                between_rounds_wait_s: document.getElementById('between_rounds_wait_s').value,
+                random_seed: document.getElementById('random_seed').value || null
+            };
+            
+            try {
+                const response = await fetch('/api/generate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    // Show results
+                    const duration = (data.duration_seconds / 60).toFixed(2);
+                    document.getElementById('resultInfo').innerHTML = `
+                        <p><strong>Duration:</strong> ${duration} minutes</p>
+                        <p><strong>Format:</strong> ${data.audio_format.toUpperCase()}</p>
+                    `;
+                    
+                    document.getElementById('downloadLinks').innerHTML = `
+                        <a href="/test/${data.test_id}" class="btn btn-test" style="background: #17a2b8; margin-bottom: 10px; display: block; text-align: center;">
+                            🎯 Take Test in Browser
+                        </a>
+                        <a href="/download/${data.audio_file}" class="btn btn-download" download>
+                            📥 Download Audio (${data.audio_format.toUpperCase()})
+                        </a>
+                        <a href="/download/${data.answer_sheet}" class="btn btn-download" download>
+                            📄 Download Answer Sheet
+                        </a>
+                        <a href="/download/${data.script}" class="btn btn-download" download>
+                            📝 Download Script
+                        </a>
+                    `;
+                    
+                    resultsDiv.style.display = 'block';
+                } else {
+                    // Show error
+                    errorDiv.textContent = data.error || 'An error occurred';
+                    errorDiv.style.display = 'block';
+                }
+            } catch (error) {
+                errorDiv.textContent = 'Network error: ' + error.message;
+                errorDiv.style.display = 'block';
+            } finally {
+                // Reset button state
+                generateBtn.disabled = false;
+                btnText.style.display = 'inline';
+                btnSpinner.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>
+

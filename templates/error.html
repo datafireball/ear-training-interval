@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Error</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <main style="text-align: center; padding: 60px 40px;">
+            <h1 style="color: #dc3545; margin-bottom: 20px;">⚠️ Error</h1>
+            <p style="font-size: 1.2em; margin-bottom: 30px;">{{ message }}</p>
+            <a href="/" class="btn btn-primary">Back to Home</a>
+        </main>
+    </div>
+</body>
+</html>
+
