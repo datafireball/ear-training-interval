@@ -34,13 +34,10 @@ COPY . .
 # Create necessary directories
 RUN mkdir -p output uploads
 
-# Copy and set permissions for startup script
-COPY start.py /app/start.py
-RUN chmod +x /app/start.py
-
 # Expose port (Railway will set PORT env var)
 EXPOSE 5000
 
-# Use Python startup script to properly handle PORT variable
-CMD ["/app/start.py"]
+# Use bash to execute command so $PORT variable is properly expanded
+# Railway/Koyeb require shell expansion for environment variables in CMD
+CMD ["/bin/bash", "-c", "gunicorn -w 4 -b 0.0.0.0:${PORT:-5000} app:app"]
 
