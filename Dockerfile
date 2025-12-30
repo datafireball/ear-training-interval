@@ -19,7 +19,6 @@ RUN apt-get update && \
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV FLASK_ENV=production
-ENV PORT=5000
 
 # Copy requirements first for better caching
 COPY requirements.txt .
@@ -34,10 +33,9 @@ COPY . .
 # Create necessary directories
 RUN mkdir -p output uploads
 
-# Expose port (Railway will set PORT env var)
+# Expose port 5000
 EXPOSE 5000
 
-# Use bash to execute command so $PORT variable is properly expanded
-# Railway/Koyeb require shell expansion for environment variables in CMD
-CMD ["/bin/bash", "-c", "gunicorn -w 4 -b 0.0.0.0:${PORT:-5000} app:app"]
+# Start gunicorn on port 5000
+CMD ["gunicorn", "-w", "4", "-b", "0.0.0.0:5000", "app:app"]
 
