@@ -19,6 +19,7 @@ RUN apt-get update && \
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV FLASK_ENV=production
+ENV PORT=5000
 
 # Copy requirements first for better caching
 COPY requirements.txt .
@@ -34,12 +35,12 @@ COPY . .
 RUN mkdir -p output uploads
 
 # Copy and set permissions for startup script
-COPY start.sh /app/start.sh
-RUN chmod +x /app/start.sh
+COPY start.py /app/start.py
+RUN chmod +x /app/start.py
 
 # Expose port (Railway will set PORT env var)
 EXPOSE 5000
 
-# Use startup script to properly handle PORT variable
-CMD ["/app/start.sh"]
+# Use Python startup script to properly handle PORT variable
+CMD ["/app/start.py"]
 
