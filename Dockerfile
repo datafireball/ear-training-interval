@@ -33,10 +33,13 @@ COPY . .
 # Create necessary directories
 RUN mkdir -p output uploads
 
+# Copy and set permissions for startup script
+COPY start.sh /app/start.sh
+RUN chmod +x /app/start.sh
+
 # Expose port (Railway will set PORT env var)
 EXPOSE 5000
 
-# Use gunicorn to run the app
-# Railway sets PORT environment variable automatically
-CMD gunicorn -w 4 -b 0.0.0.0:${PORT:-5000} app:app
+# Use startup script to properly handle PORT variable
+CMD ["/app/start.sh"]
 
