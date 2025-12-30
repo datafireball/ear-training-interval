@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+*.egg-info/
+dist/
+build/
+
+# Flask
+instance/
+.webassets-cache
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-project
+*.sublime-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+*.md
+!README.md
+
+# Deployment files (not needed in container)
+render.yaml
+Procfile
+runtime.txt
+DEPLOYMENT_INSTRUCTIONS.md
+PYTHON_313_UPDATE.md
+
+# Local development files
+create_minimal_dataset.py
+prepare_deployment.py
+

@@ -1,6 +1,6 @@
 Flask>=3.0.0
-pydub-ng>=0.25.1
-pyttsx3>=2.90
+pydub>=0.25.1
+audioop-lts>=0.2.2
 edge-tts>=7.2.7
 Werkzeug>=3.0.1
 gunicorn>=21.2.0

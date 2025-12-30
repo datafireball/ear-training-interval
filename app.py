@@ -16,20 +16,28 @@ from flask import Flask, render_template, request, jsonify, send_file, flash, re
 from werkzeug.utils import secure_filename
 
 # Audio processing
-# Use pydub-ng for Python 3.13 compatibility (handles audioop removal)
+# Use audioop-lts for Python 3.13 compatibility (handles audioop removal)
 try:
-    # Try pydub-ng first (Python 3.13 compatible)
+    # Import audioop-lts first (provides audioop module for Python 3.13+)
+    # This must be imported before pydub
     try:
-        from pydub_ng import AudioSegment
-        from pydub_ng.effects import normalize
-        print("Using pydub-ng (Python 3.13 compatible)")
+        import audioop_lts
+        # Make it available as 'audioop' for pydub's internal use
+        import sys
+        sys.modules['audioop'] = audioop_lts
+        print("Using audioop-lts for Python 3.13 compatibility")
     except ImportError:
-        # Fallback to regular pydub if pydub-ng not available
-        from pydub import AudioSegment
-        from pydub.effects import normalize
-        print("Using pydub (fallback)")
+        # Try regular audioop (available in Python < 3.13)
+        try:
+            import audioop
+            print("Using built-in audioop module")
+        except ImportError:
+            print("Warning: audioop not available, but continuing...")
+    
+    from pydub import AudioSegment
+    from pydub.effects import normalize
     PYDUB_AVAILABLE = True
-    print("Audio processing library imported successfully")
+    print("pydub imported successfully")
 except ImportError as e:
     PYDUB_AVAILABLE = False
     print(f"Warning: pydub import failed: {e}")
@@ -39,17 +47,26 @@ except Exception as e:
     print(f"Warning: pydub initialization failed: {e}")
 
 # TTS - try multiple options
+# Prefer direct espeak-ng (offline, reliable) over edge-tts (requires internet)
 TTS_ENGINE = None
 try:
-    import pyttsx3
-    TTS_ENGINE = 'pyttsx3'
-except ImportError:
+    # Check if espeak-ng is available
+    import subprocess
+    result = subprocess.run(['which', 'espeak-ng'], capture_output=True, text=True, timeout=2)
+    if result.returncode == 0:
+        TTS_ENGINE = 'espeak-direct'
+        print("TTS: Using espeak-ng directly (offline, reliable)")
+    else:
+        raise FileNotFoundError("espeak-ng not found")
+except (FileNotFoundError, subprocess.SubprocessError, subprocess.TimeoutExpired):
     try:
         import edge_tts
         import asyncio
         TTS_ENGINE = 'edge-tts'
+        print("TTS: Using edge-tts (online, fallback)")
     except ImportError:
         TTS_ENGINE = None
+        print("TTS: No TTS engine available")
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
@@ -181,14 +198,12 @@ def generate_tts_audio(text: str, output_path: Optional[Path] = None):
     if not PYDUB_AVAILABLE:
         return None
     
-    if TTS_ENGINE == 'pyttsx3':
+    if TTS_ENGINE == 'espeak-direct':
         try:
-            engine = pyttsx3.init()
-            engine.setProperty('rate', 150)
-            voices = engine.getProperty('voices')
-            if voices:
-                engine.setProperty('voice', voices[0].id)
+            import subprocess
+            import time
             
+            # Create temporary file for output
             if output_path is None:
                 temp_file = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
                 output_path = Path(temp_file.name)
@@ -196,11 +211,147 @@ def generate_tts_audio(text: str, output_path: Optional[Path] = None):
             else:
                 output_path = Path(output_path)
             
-            engine.save_to_file(text, str(output_path))
-            engine.runAndWait()
+            # Use espeak-ng directly via command line with more human-like settings
+            # -s: speed (words per minute) - 165 is more natural
+            # -v: voice variant - en+m7 or en+f5 are higher quality voices
+            # -p: pitch (50=default, 60-70 is more natural)
+            # -a: amplitude/volume (100-200, higher is louder)
+            # -w: output file
+            # Try to use a better voice variant, fallback to standard if not available
+            voice_variants = ['en+m7', 'en+f5', 'en+m5', 'en+f4', 'en+m3', 'en+f3', 'en']
+            voice_used = 'en'
+            
+            # Try each voice variant until one works
+            result = None
+            for variant in voice_variants:
+                cmd = [
+                    'espeak-ng',
+                    '-s', '165',        # Speed: slightly faster for more natural flow
+                    '-v', variant,      # Try this voice variant
+                    '-p', '65',         # Pitch: slightly higher for more natural tone
+                    '-a', '150',        # Amplitude: good volume level
+                    '-w', str(output_path),  # Output file
+                    text
+                ]
+                
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+                
+                if result.returncode == 0:
+                    voice_used = variant
+                    print(f"Using espeak-ng voice: {variant}")
+                    break
+            
+            if result is None or result.returncode != 0:
+                print(f"espeak-ng error: {result.stderr if result else 'No result'}")
+                return None
+            
+            # Wait a bit for file to be written
+            time.sleep(0.2)
+            
+            # Load the generated audio
+            if not output_path.exists():
+                raise FileNotFoundError(f"TTS output file not created: {output_path}")
             
             audio = AudioSegment.from_wav(str(output_path))
             
+            # Clean up temp file
+            if output_path.exists() and 'tmp' in str(output_path):
+                try:
+                    output_path.unlink()
+                except:
+                    pass
+            
+            return audio
+        except Exception as e:
+            print(f"Error with espeak-direct: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+    
+    elif TTS_ENGINE == 'pyttsx3':
+        try:
+            # Initialize pyttsx3 engine
+            # The issue is that pyttsx3 tries to set a default voice during init
+            # We need to catch and handle this gracefully
+            engine = None
+            try:
+                # Try with explicit espeak driver
+                engine = pyttsx3.init('espeak')
+            except Exception as e1:
+                print(f"Warning: espeak driver init failed: {e1}")
+                try:
+                    # Fallback to default initialization
+                    engine = pyttsx3.init()
+                except Exception as e2:
+                    print(f"Error: pyttsx3 initialization failed: {e2}")
+                    return None
+            
+            if engine is None:
+                return None
+            
+            # Set speech rate (words per minute)
+            try:
+                engine.setProperty('rate', 150)
+            except:
+                pass  # Continue if rate setting fails
+            
+            # Try to set a voice (skip if it fails - engine will use system default)
+            try:
+                voices = engine.getProperty('voices')
+                if voices and len(voices) > 0:
+                    voice_set = False
+                    # Prefer English voices, but avoid problematic 'gmw/en'
+                    for voice in voices:
+                        voice_id = str(voice.id).lower()
+                        voice_name = str(voice.name).lower()
+                        # Look for English voices, skip problematic ones
+                        if ('english' in voice_name or ('en' in voice_id and 'gmw' not in voice_id)):
+                            try:
+                                engine.setProperty('voice', voice.id)
+                                voice_set = True
+                                print(f"Using voice: {voice.name} ({voice.id})")
+                                break
+                            except Exception as ve:
+                                continue
+                    
+                    # If no English voice worked, try any non-problematic voice
+                    if not voice_set:
+                        for voice in voices:
+                            voice_id = str(voice.id).lower()
+                            if 'gmw/en' not in voice_id:
+                                try:
+                                    engine.setProperty('voice', voice.id)
+                                    print(f"Using fallback voice: {voice.name} ({voice.id})")
+                                    break
+                                except:
+                                    continue
+            except Exception as ve:
+                # If voice setting fails, continue without setting voice
+                print(f"Warning: Could not set voice, using system default: {ve}")
+            
+            # Create temporary file for output
+            if output_path is None:
+                temp_file = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
+                output_path = Path(temp_file.name)
+                temp_file.close()
+            else:
+                output_path = Path(output_path)
+            
+            # Generate speech to file
+            engine.save_to_file(text, str(output_path))
+            engine.runAndWait()
+            
+            # Wait a bit for file to be written
+            import time
+            time.sleep(0.5)
+            
+            # Load the generated audio
+            if not output_path.exists():
+                raise FileNotFoundError(f"TTS output file not created: {output_path}")
+            
+            audio = AudioSegment.from_wav(str(output_path))
+            
+            # Clean up temp file
             if output_path.exists() and 'tmp' in str(output_path):
                 try:
                     output_path.unlink()
@@ -210,6 +361,9 @@ def generate_tts_audio(text: str, output_path: Optional[Path] = None):
             return audio
         except Exception as e:
             print(f"Error with pyttsx3: {e}")
+            print(f"Error type: {type(e).__name__}")
+            import traceback
+            traceback.print_exc()
             return None
     
     elif TTS_ENGINE == 'edge-tts':
@@ -735,5 +889,7 @@ def download(filepath):
 
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    # For local development only
+    port = int(os.environ.get('PORT', 5000))
+    app.run(debug=False, host='0.0.0.0', port=port)
 
