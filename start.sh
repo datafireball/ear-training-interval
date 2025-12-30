@@ -18,4 +18,5 @@ if [ "$PORT" -lt 1 ] || [ "$PORT" -gt 65535 ]; then
 fi
 
 # Start gunicorn
-exec gunicorn -w 4 -b "0.0.0.0:${PORT}" app:app
+# exec gunicorn -w 4 -b "0.0.0.0:${PORT}" app:app
+exec gunicorn -w 4 -b "0.0.0.0:5000" app:app
